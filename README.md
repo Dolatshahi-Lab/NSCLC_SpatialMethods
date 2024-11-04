@@ -13,16 +13,16 @@ Additional spatial analysis was conducted using spatstat (Baddeley et al.), whic
 
 Files and Notebooks
 1. 1-29-23_SpatialAnalysis_Vectra_PreProcessing.ipynb
-•	Description: This notebook processes Vectra object data from mIHC tumor biopsies, defining cell types and performing other preprocessing steps.
-•	Output: The resulting CSV file serves as input for the neighbor-finding algorithm. Cell types and data format align with those described in Wessel et al., 2024.
-2. 3-12-23_SpatialAnalysis_Vectra_Neighborfinding_Algorithms.ipynb
-•	Description: This code builds on the preprocessed Vectra data, modifying the dataframe to include the number of neighbors for each cell, classified by cell type.
-•	Output: A dataframe containing original Vectra data as well as a neighborhood profile for each cell. This enriched data is subsequently used in machine learning analysis.
-3. 4-8-24_Public_PLS-DA_Only_InDepthAnalysis-multiradius-reundersampling-cellabundances.ipynb
-•	Objective: Perform PLS-DA analysis on Vectra data, utilizing neighborhood profiles as features.
-•	Input: Data from Vectra with appended neighborhood profiles.
-•	Output: Generates PLS-DA plots, VIP scores, confusion matrices, ROC curves, permutation tests, and results from re-undersampling, which are displayed as accuracy distributions.
-4. SpatialAnalysis_KCrossCode_Public1.Rmd
-•Description: This R Markdown file evaluates spatial associations between specified center and target cells at a range of distances (e.g., 0-200 μm). Users can analyze multiple center cells for their spatial relationship to a single target cell for comparison in a single plot, with bootstrap confidence intervals for robustness.
-•	Output: Visualizations of spatial associations over varying radii, with theoretical comparisons based on Poisson distributions.
+   •	Description: This notebook processes Vectra object data from mIHC tumor biopsies, defining cell types and performing other preprocessing steps.
+   •	Output: The resulting CSV file serves as input for the neighbor-finding algorithm. Cell types and data format align with those described in Wessel et al., 2024.
+3. 3-12-23_SpatialAnalysis_Vectra_Neighborfinding_Algorithms.ipynb
+   •	Description: This code builds on the preprocessed Vectra data, modifying the dataframe to include the number of neighbors for each cell, classified by cell type.
+   •	Output: A dataframe containing original Vectra data as well as a neighborhood profile for each cell. This enriched data is subsequently used in machine learning analysis.
+5. 4-8-24_Public_PLS-DA_Only_InDepthAnalysis-multiradius-reundersampling-cellabundances.ipynb
+  •	Objective: Perform PLS-DA analysis on Vectra data, utilizing neighborhood profiles as features.
+  •	Input: Data from Vectra with appended neighborhood profiles.
+  •	Output: Generates PLS-DA plots, VIP scores, confusion matrices, ROC curves, permutation tests, and results from re-undersampling, which are displayed as accuracy distributions.
+7. SpatialAnalysis_KCrossCode_Public1.Rmd
+   •Description: This R Markdown file evaluates spatial associations between specified center and target cells at a range of distances (e.g., 0-200 μm). Users can analyze multiple center cells for their spatial relationship to a single target cell for comparison in a single plot, with bootstrap confidence intervals for robustness.
+  •	Output: Visualizations of spatial associations over varying radii, with theoretical comparisons based on Poisson distributions.
 
