@@ -1,0 +1,200 @@
+---
+title: "Spatial Analysis KCross Code of Vectra HALO Responses"
+output: html_notebook
+---
+
+
+```{r}
+# Clear environment
+rm(list = ls())
+
+# Load necessary packages
+if (!requireNamespace("inops", quietly = TRUE)) install.packages("inops")
+if (!requireNamespace("spatstat", quietly = TRUE)) install.packages("spatstat")
+library(spatstat)
+library(dplyr)
+library(purrr)
+library(inops)
+
+# Load data
+objectData <- read.csv(datafile)
+
+# Convert specific columns to integer
+cols_to_convert <- c("XMin", "YMin", "XMax", "YMax", "XCenter", "YCenter")
+objectData[ , cols_to_convert] <- lapply(objectData[ , cols_to_convert], as.integer)
+
+# Remove rows with missing values in specific columns
+objectData <- objectData[complete.cases(objectData[cols_to_convert]), ]
+
+# Get max values of YMax and XMax
+ymax <- max(objectData$YMax, na.rm = TRUE)
+xmax <- max(objectData$XMax, na.rm = TRUE)
+
+# Exclude specific patients
+excluded_patients <- c("15-671", "17-234", "17-328", "17-408", "17-473", "17-504")
+objectData <- objectData[!objectData$PatientID %in% excluded_patients, ]
+
+# Extract unique cell types and image IDs
+CellTypesVector <- unique(objectData$CellType)
+ImageIDs <- unique(objectData$ImageLocation)
+
+# Define cell types and vectors
+cellTypes <- c('CD8-CD3+IFNy-', 'CD8-CD3+IFNy+')
+celltype2 <- "CD8+CD3+IFNy+"
+xvec <- seq(0, 201, by = 1.43)
+xvec2 <- seq(0, 201, by = 1)
+```
+
+
+```{r}
+# Initialize counters
+slide_count <- 0
+skipped_slides <- 0
+counted_slides <- 0
+
+# Initialize list to store results for each cell type
+allKfuncSums <- setNames(vector("list", length(cellTypes)), cellTypes)
+
+# Loop over each cell type
+for (celltype in cellTypes) {
+  KfuncSum <- NULL
+  cellTypeBord <- NULL
+  
+  # Loop over each image ID
+  for (image_id in ImageIDs) {
+    print(image_id)
+    
+    tryCatch({
+      # Filter data for current image
+      slide_data <- subset(objectData, ImageLocation == image_id)
+      slide_cell_types <- unique(slide_data$CellType)
+      
+      # Check if both cell types are present
+      if (celltype %in% slide_cell_types & celltype2 %in% slide_cell_types) {
+        print("Processing slide...")
+        
+        # Create point pattern
+        cell_data <- ppp(slide_data$XCenter, slide_data$YCenter, c(0, xmax), c(0, ymax), marks = factor(slide_data$CellType))
+        
+        # Separate data by cell type
+        celltype1_data <- subset(cell_data, marks == celltype)
+        celltype2_data <- subset(cell_data, marks == celltype2)
+        
+        # Check if enough points exist for both cell types
+        if (length(celltype1_data$x) > 2 & length(celltype2_data$x) > 2) {
+          subset_cell_data <- subset(cell_data, marks %in% c(celltype, celltype2), drop = TRUE)
+          set.seed(123)
+          
+          # Perform bootstrap analysis
+          boot_patterns <- lohboot(subset_cell_data, fun = "Kcross", r = xvec, basicboot = TRUE, confidence = 0.95, nsim = 99)
+          
+          # Extract confidence intervals and other results
+          upper_ci <- boot_patterns$hi[1:141]
+          lower_ci <- boot_patterns$lo[1:141]
+          avg_boot <- boot_patterns$iso[1:141]
+          rboot <- boot_patterns$r[1:141]
+          
+          # Calculate cross-K function
+          k_cross <- Kcross(cell_data, i = celltype, j = celltype2, r = xvec, correction = "border")
+          
+          # If no NA values in results, update counts and accumulate results
+          if (!any(is.na(k_cross$border))) {
+            counted_slides <- counted_slides + 1
+            
+            if (is.null(KfuncSum)) {
+              # Initialize KfuncSum if it's the first slide
+              KfuncSum <- k_cross
+              cellTypeBord <- KfuncSum[[3]]
+              KfuncSum$upperCI <- upper_ci
+              KfuncSum$lowerCI <- lower_ci
+              KfuncSum$bootArray <- avg_boot
+              KfuncSum$rboot <- rboot
+            } else {
+              # Accumulate results for subsequent slides
+              slide_count <- slide_count + 1
+              KfuncSum$theo <- Map(`+`, KfuncSum$theo, k_cross$theo)
+              KfuncSum$border <- Map(`+`, KfuncSum$border, k_cross$border)
+              cellTypeBord <- c(cellTypeBord, KfuncSum[[3]])
+              KfuncSum$upperCI <- Map(`+`, KfuncSum$upperCI, upper_ci)
+              KfuncSum$lowerCI <- Map(`+`, KfuncSum$lowerCI, lower_ci)
+              KfuncSum$bootArray <- Map(`+`, KfuncSum$bootArray, avg_boot)
+              KfuncSum$rboot <- Map(`+`, KfuncSum$rboot, rboot)
+            }
+          } else {
+            skipped_slides <- skipped_slides + 1
+          }
+        }
+      }
+    }, error = function(e) {
+      # Handle errors
+      skipped_slides <<- skipped_slides + 1
+      cat("Error processing slide", image_id, ":", conditionMessage(e), "\n")
+    })
+  }
+  
+  # Store results for the current cell type
+  allKfuncSums[[celltype]] <- KfuncSum
+}
+```
+
+
+```{r}
+# Cell abundances
+cell_abundances <- list(238605, 2711)
+
+# Extract all required data for CD8-CD3+IFNy+ cell type
+cd8_ifny_data <- allKfuncSums[['CD8-CD3+IFNy+']]
+allKfuncSums2_r <- cd8_ifny_data[['r']]
+allKfuncSums2_b <- cd8_ifny_data[['border']]
+allKfuncSums2_u <- cd8_ifny_data[['upperCI']]
+allKfuncSums2_l <- cd8_ifny_data[['lowerCI']]
+allKfuncSums2_ba <- cd8_ifny_data[['bootArray']]
+allKfuncSums2_t <- cd8_ifny_data[['theo']]
+
+# Print selected values for verification
+print(allKfuncSums[[celltype1]])
+xlim_values <- allKfuncSums[[celltype1]][['r']]
+print(xlim_values)
+
+# Open PDF for output
+pdf("/scratch/kag7stn/_5-9-24-Brown_CD8IFNy_CD4s_nonnormalized_v3.pdf", width = 8, height = 6)
+
+# Set up colors for plotting
+colors <- rainbow(length(cellTypes))
+ylim_values <- range(allKfuncSums2_b)
+
+# Base plot with a transparent line for setting up the canvas
+plot(allKfuncSums2_r, allKfuncSums2_ba, type = "l", col = 'white')
+
+# Add theoretical lines
+lines(allKfuncSums[[celltype1]][['r']], allKfuncSums2_t, type = "l")
+
+# Loop through each cell type and add lines to the plot
+k <- 0
+for (type in cellTypes) {
+  k <- k + 1
+  type_data <- allKfuncSums[[type]]
+  
+  # Extract required data for current cell type
+  r_values <- type_data[['r']]
+  border <- type_data[['border']]
+  upperCI <- type_data[['upperCI']]
+  lowerCI <- type_data[['lowerCI']]
+  bootArray <- type_data[['bootArray']]
+  
+  # Plot the border, upperCI, lowerCI, and bootArray lines
+  lines(r_values, border, col = colors[k])
+  lines(r_values, upperCI, col = colors[k], lty = 2)
+  lines(r_values, lowerCI, col = colors[k], lty = 2)
+  lines(r_values, bootArray, col = colors[k])
+}
+
+# Add legend
+legend("topleft", legend = cellTypes, col = colors, lty = 1, lwd = 2)
+
+# Close the PDF device
+dev.off()
+
+
+```
+
